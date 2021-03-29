@@ -5,5 +5,5 @@
 The program can be assembled by running java -jar <PATH_TOKICKASS>/KickAss.jar cell.asm.
 To run the program in VICE:
 1. x64 cell.prg.
-2. POKE 2048,<RULE>
+2. POKE 2048, <RULE>
 3. SYS 4096
