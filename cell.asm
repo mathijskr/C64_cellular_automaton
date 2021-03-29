@@ -5,13 +5,19 @@
 .const rowsize = 39
 .const screen = $0400
 .const wolframrule = 2049   /* Poke 2049,rule to set the used wolframrule. */
-.const state1color = GREEN
+.const state1color = ORANGE
 
 // Example rule 30:
 //  0   0   0   1   1   1   1   0
 // 111 110 101 100 011 010 001 000
 
 start:
+    /* Store address of screen in 02-03 vector. */
+    /* WARNING: not completely sure if A is always 0 at start of program. */
+    sta $02
+    lda #$04
+    sta $03
+
     /* Clear screen. */
     jsr $e544
 
@@ -29,12 +35,6 @@ start:
     FillCharsetChar(32, 0)
 
     SetCharBackground(state1color)
-
-    /* Store address of screen in 02-03 vector. */
-    lda #0
-    sta $02
-    lda #$04
-    sta $03
 
     jsr initfirstrow
     jmp loop
@@ -68,7 +68,6 @@ neighbourhood:
     clc
     rol
     adc ($04),Y
-    clc
     rol
     iny
     cpy #rowsize+1
