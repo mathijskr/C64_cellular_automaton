@@ -13,8 +13,9 @@
 
 start:
     /* Store address of screen in 02-03 vector. */
-    /* WARNING: not completely sure if A is always 0 at start of program. */
-    sta $02
+    /* WARNING: not completely sure if 02 is always 0 at start of program. */
+    /* lda #0 */
+    /* sta $02 */
     lda #$04
     sta $03
 
@@ -36,10 +37,7 @@ start:
 
     SetCharBackground(state1color)
 
-    jsr initfirstrow
-    jmp loop
-
-initfirstrow:
+    /* Initialize the first row. */
     ldy #rowsize
     fill:
         lda #0
@@ -49,7 +47,61 @@ initfirstrow:
     lda #1
     ldy #2
     sta ($02),Y
-    rts
+
+update:
+    /* Uncomment to update more slowly. */
+    /* lda $d012   // Read current raster line. */
+    /* cmp #$42 */
+    /* bne loop */
+    /* iny */
+    /* cpy #50 */
+    /* bne loop */
+    /* ldy #0 */
+
+    /* Copy old current row address. */
+    lda $03
+    cmp #$10
+    beq skipupdate  // Stop updating after the last row is calculated.
+    sta $05
+    lda $02
+    sta $04
+
+    /* Increase the current row number bij adding the rowsize to the 02-03 vector .*/
+    lda #rowsize+1
+    clc
+    adc $02
+    sta $02
+    lda #0
+    adc $03
+    sta $03
+
+    /* Update the current row by calculating the states of the next row. */
+    ldy #rowsize
+    updatecolumn:
+        jsr neighbourhood
+        lda #1
+        ldx $002a
+        cpx #0
+        beq skipshift
+        /* Create the mask to read the cell's next state. */
+        shift:
+            clc
+            rol
+            dex
+            bne shift
+        skipshift:
+        /* Lookup the cell's next state in the wolfram rule. */
+        and wolframrule
+        beq store
+        lda #1
+        store:
+        sta ($02),Y
+        dey
+        bpl updatecolumn
+
+    skipupdate:
+
+    jmp update
 
 /* Load a cell's neighbourhood and store in 002a. */
 /* If a neighbourhood contains the states 111, the value in 002a will be: 00000111. */
@@ -82,71 +134,6 @@ neighbourhood:
     normalright:
     dey
     sta $002a
-    rts
-
-updaterow:
-    ldy #rowsize
-    updatecolumn:
-        jsr neighbourhood
-        lda #1
-        ldx $002a
-        cpx #0
-        beq skipshift
-
-        /* Create the mask to read the cell's next state. */
-        shift:
-            clc
-            rol
-            dex
-            bne shift
-
-        skipshift:
-
-        /* Lookup the cell's next state in the wolfram rule. */
-        and wolframrule
-        beq store
-        lda #1
-        store:
-        sta ($02),Y
-        dey
-        bpl updatecolumn
-    rts
-
-loop:
-    /* Uncomment to only update periodically. */
-    /* lda $d012   // Read current raster line. */
-    /* cmp #$42 */
-    /* bne loop */
-    /* iny */
-    /* cpy #50 */
-    /* bne loop */
-    /* ldy #0 */
-
-    jsr update
-    jmp loop
-
-update:
-    /* Copy old current row address. */
-    lda $03
-    cmp #$10
-    beq skipupdate  // Stop updating after the last row is calculated.
-    sta $05
-    lda $02
-    sta $04
-
-    jsr incrow
-    jsr updaterow
-    skipupdate:
-    rts
-
-incrow:         // Add rowsize to the screen address vector.
-    lda #rowsize+1
-    clc
-    adc $02
-    sta $02
-    lda #0
-    adc $03
-    sta $03
     rts
 
 .macro FillCharsetChar(char, val) {
