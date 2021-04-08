@@ -9,13 +9,12 @@ BasicUpstart2(init)
 .const screen = $0400
 .const wolframrule = 2049
 .const state1color = WHITE
-.const getin = $ffe4
 .const chrout = $ffd2
 .const clearscreen = $e544
 .const currentrowhigh = $03
 .const currentrowlow = $02
 .const updaterate = 4
-.const pausetime = 200
+.const pausetime = 50
 .const raster = $d012
 
 // Example rule 030:
@@ -65,23 +64,30 @@ start:
     sta $0413
 
 update:
-    /* Uncomment to update more slowly. */
-    jsr waitraster
-    bne update
-    iny
-    cpy #updaterate
-    bne update
-    ldy #0
+    /* Comment to update instantaneously. */
+    /* jsr waitraster */
+    /* bne update */
+    /* iny */
+    /* cpy #updaterate */
+    /* bne update */
+    /* ldy #0 */
+    ldx #updaterate
+    jsr pause
 
     /* Copy old current row address. */
     lda currentrowhigh
     sta $05
     ldx currentrowlow
     stx $04
+    /* Check if current row is one after the last row. */
     cmp #$07
-    bne *+4
+    bne notlastrow
     cpx #$c0
-    beq pause  // Stop updating after the last row is calculated.
+    bne notlastrow
+    ldx #pausetime
+    jsr pause   // Stop updating after the last row is calculated.
+    jmp start   //
+    notlastrow:
 
     /* Increase the current row number bij adding the rowsize to the 02-03 vector .*/
     lda #rowsize+1
@@ -118,36 +124,40 @@ update:
 
     jmp update
 
+/* Increases the Y register modulo rowsize. */
+nextneighbour:
+    iny
+    cpy #rowsize+1
+    bne returnnext
+    ldy #0
+    returnnext:
+    rts
+
+/* Decreases the Y register modulo rowsize. */
+previousneighbour:
+    cpy #0
+    bne returnprevious
+    ldy #rowsize+1
+    returnprevious:
+    dey
+    rts
+
 /* Load a cell's neighbourhood and store in 002a. */
 /* If a neighbourhood contains the states 111, the value in 002a will be: 00000111. */
 /* Uses periodic boundary conditions, e.g. the left neighbour of cell 0 is cell 39 and the right neighbour of cell 39 is cell 0. */
+/* The value of the current colom is given in Y. */
 neighbourhood:
-    dey
-    bmi leftperiodic    // Periodic boundary.
+    jsr previousneighbour
     lda ($04),Y         // Load left neighbour.
-    jmp normalleft
-    leftperiodic:
-        ldy #rowsize
-        lda ($04),Y     // Load left neighbour.
-        ldy #$ff
-    normalleft:
-    iny
+    jsr nextneighbour
     clc
     rol
     adc ($04),Y
     rol
-    iny
-    cpy #rowsize+1
-    beq rightperiodic   // Periodic boundary.
-    adc ($04),Y         // Load right neighbour.
-    jmp normalright
-    rightperiodic:
-        ldy #0
-        clc
-        adc ($04),Y     // Load right neighbour.
-        ldy #rowsize+1
-    normalright:
-    dey
+    jsr nextneighbour
+    clc
+    adc ($04),Y            // Load right neighbour.
+    jsr previousneighbour
     sta $002a
     rts
 
@@ -158,11 +168,10 @@ waitraster:
     rts
 
 pause:
-    ldx #pausetime
     jsr waitraster
     dex
-    bmi *-4
-    jmp start
+    bne pause
+    rts
 
 .macro FillCharsetChar(char, val) {
     ldx #8
